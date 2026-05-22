@@ -1,12 +1,7 @@
-import { View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'react-native';
-import { AppBar } from '../../components/ui/AppBar';
-import { Avatar } from '../../components/ui/Avatar';
-import { Chip } from '../../components/ui/Chip';
-import { Empty } from '../../components/ui/Empty';
-import { useReviewQueue } from '../../hooks/queries/useReviewQueue';
+import { Avatar } from '../ui/Avatar';
+import { Chip } from '../ui/Chip';
 import { ReviewQueueItem } from '../../api/modules/proofs';
 import { C } from '../../constants/theme';
 
@@ -20,7 +15,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(h / 24)}일 전`;
 }
 
-function ReviewItem({ item }: { item: ReviewQueueItem }) {
+export function ProofCard({ item }: { item: ReviewQueueItem }) {
   const router = useRouter();
 
   return (
@@ -46,38 +41,7 @@ function ReviewItem({ item }: { item: ReviewQueueItem }) {
   );
 }
 
-export default function ReviewScreen() {
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useReviewQueue();
-  const items = data?.pages.flatMap((p) => p.data) ?? [];
-  const total = data?.pages[0] ? items.length : 0;
-
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <AppBar title="승인 대기" sub={total > 0 ? `${total}건의 인증을 검토해주세요` : undefined} />
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ReviewItem item={item} />}
-        contentContainerStyle={styles.list}
-        onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
-        onEndReachedThreshold={0.3}
-        ListEmptyComponent={
-          isLoading
-            ? <ActivityIndicator color={C.blue} style={{ marginTop: 40 }} />
-            : <Empty icon="document-text" title="승인할 인증이 없어요" sub="나중에 다시 확인해주세요" />
-        }
-        ListFooterComponent={
-          isFetchingNextPage ? <ActivityIndicator color={C.blue} style={{ marginVertical: 16 }} /> : null
-        }
-        showsVerticalScrollIndicator={false}
-      />
-    </SafeAreaView>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-  list: { padding: 20, gap: 12 },
   item: {
     flexDirection: 'row', gap: 12,
     padding: 12, borderRadius: 14,

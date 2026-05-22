@@ -1,61 +1,59 @@
-import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { PhotoPlaceholder } from '../../components/ui/PhotoPlaceholder';
 import { Chip } from '../../components/ui/Chip';
 import { Streak } from '../../components/ui/Streak';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { Section } from '../../components/ui/Section';
+import { Empty } from '../../components/ui/Empty';
+import { useMe } from '../../hooks/queries/useMe';
+import { useMyChallenges } from '../../hooks/queries/useMyChallenges';
+import { useReviewQueueCount } from '../../hooks/queries/useReviewQueueCount';
+import { MyChallengeItem } from '../../api/modules/challenges';
 import { C } from '../../constants/theme';
 
-const MOCK_CHALLENGES = [
-  { id: 'c1', title: '하루 물 2L 마시기', category: '생활습관', seed: 'water', daysLeft: 12, total: 30, streak: 7, participants: 248, todayDone: false, coverColor: '#00AEFF', endingSoon: false },
-  { id: 'c2', title: '아침 6시 기상 챌린지', category: '갓생', seed: 'morning', daysLeft: 3, total: 21, streak: 18, participants: 86, todayDone: true, coverColor: '#FF9200', endingSoon: true },
-  { id: 'c3', title: '퇴근 후 30분 독서', category: '자기계발', seed: 'book', daysLeft: 24, total: 30, streak: 5, participants: 412, todayDone: false, coverColor: '#6541F2', endingSoon: false },
-];
+const COVER_COLORS = ['#00AEFF', '#FF9200', '#6541F2', '#FF5E00', '#00BF40', '#0066FF'];
 
-const POPULAR = [
-  { id: 'p1', title: '100일 코딩 챌린지', seed: 'code', category: '자기계발', participants: 1284 },
-  { id: 'p2', title: '주 3회 홈트레이닝', seed: 'fit', category: '운동', participants: 832 },
-  { id: 'p3', title: '하루 한 끼 식단 사진', seed: 'meal', category: '건강', participants: 567 },
-  { id: 'p4', title: '매일 영어 단어 10개', seed: 'eng', category: '공부', participants: 921 },
-];
+function coverColor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return COVER_COLORS[h % COVER_COLORS.length];
+}
 
-const PENDING_COUNT = 5;
-const STREAK = 7;
-const TICKETS = 3;
-const POINTS = 1284;
-
-function ChallengeCard({ c }: { c: typeof MOCK_CHALLENGES[0] }) {
+function ChallengeCard({ c }: { c: MyChallengeItem }) {
   const router = useRouter();
-  const progress = ((c.total - c.daysLeft) / c.total) * 100;
+  const progress = c.daysUntilEnd > 0 ? Math.max(0, 100 - (c.daysUntilEnd / 30) * 100) : 100;
+  const color = coverColor(c.id);
 
   return (
-    <Pressable
-      onPress={() => router.push(`/challenges/${c.id}`)}
-      style={styles.challengeCard}
-    >
+    <Pressable onPress={() => router.push(`/challenges/${c.id}`)} style={styles.challengeCard}>
       <View style={styles.challengeCardRow}>
-        <View style={[styles.challengeAvatar, { backgroundColor: c.coverColor }]}>
+        <View style={[styles.challengeAvatar, { backgroundColor: color }]}>
           <Text style={styles.challengeAvatarText}>{c.title[0]}</Text>
         </View>
         <View style={styles.challengeInfo}>
           <View style={styles.chipRow}>
-            <Chip size="xs" variant="neutral">{c.category}</Chip>
-            {c.endingSoon && <Chip size="xs" variant="warning">D-{c.daysLeft}</Chip>}
+            {c.isEnded
+              ? <Chip size="xs" variant="neutral">종료</Chip>
+              : c.daysUntilEnd <= 3 && <Chip size="xs" variant="warning">D-{c.daysUntilEnd}</Chip>
+            }
           </View>
           <Text style={styles.challengeTitle} numberOfLines={1}>{c.title}</Text>
           <View style={styles.metaRow}>
-            <Streak days={c.streak} />
-            <Text style={styles.metaText}>D-{c.daysLeft} · {c.participants}명</Text>
+            <Streak days={c.currentStreak} />
+            <Text style={styles.metaText}>D-{c.daysUntilEnd}</Text>
           </View>
         </View>
       </View>
 
-      <ProgressBar value={progress} color={c.coverColor} />
+      <ProgressBar value={progress} color={color} />
 
-      {c.todayDone ? (
+      {c.isEnded ? (
+        <View style={styles.doneBadge}>
+          <Text style={[styles.doneText, { color: C.text3 }]}>종료된 챌린지</Text>
+        </View>
+      ) : c.isTodayProofDone ? (
         <View style={styles.doneBadge}>
           <Text style={styles.doneText}>✓ 오늘 인증 완료</Text>
         </View>
@@ -73,14 +71,16 @@ function ChallengeCard({ c }: { c: typeof MOCK_CHALLENGES[0] }) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { data: me } = useMe();
+  const { data: challenges, isLoading: challengesLoading } = useMyChallenges();
+  const { data: pendingCount } = useReviewQueueCount();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>안녕하세요, 지수님</Text>
+            <Text style={styles.greeting}>안녕하세요, {me?.nickname ?? ''}님</Text>
             <Text style={styles.headline}>오늘도 잘 하고 있어요</Text>
           </View>
           <Pressable onPress={() => router.push('/settings')} style={styles.bellBtn}>
@@ -88,68 +88,50 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Mini stats */}
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, styles.statCardFlex]}>
-            <Text style={styles.statIcon}>🔥</Text>
-            <Text style={styles.statLabel}>현재 streak</Text>
-            <Text style={[styles.statValue, { color: C.coral }]}>{STREAK}일</Text>
-          </View>
           <View style={[styles.statCard, styles.statCardFlex]}>
             <Text style={styles.statIcon}>🎫</Text>
             <Text style={styles.statLabel}>복권</Text>
-            <Text style={[styles.statValue, { color: C.yellow }]}>{TICKETS}개</Text>
+            <Text style={[styles.statValue, { color: C.yellow }]}>{me?.ticketCount ?? 0}개</Text>
           </View>
           <View style={[styles.statCard, styles.statCardFlex]}>
             <Text style={styles.statIcon}>💰</Text>
             <Text style={styles.statLabel}>포인트</Text>
-            <Text style={[styles.statValue, { color: C.blue }]}>{POINTS.toLocaleString()}</Text>
+            <Text style={[styles.statValue, { color: C.blue }]}>{(me?.totalEarned ?? 0).toLocaleString()}</Text>
           </View>
         </View>
 
-        {/* Pending banner */}
-        {PENDING_COUNT > 0 && (
+        {(pendingCount ?? 0) > 0 && (
           <Pressable onPress={() => router.push('/proofs/review')} style={styles.pendingBanner}>
             <View style={styles.pendingIcon}>
               <Ionicons name="document-text-outline" size={18} color="#fff" />
             </View>
             <View style={styles.pendingText}>
-              <Text style={styles.pendingTitle}>승인 대기 {PENDING_COUNT}건이 있어요</Text>
+              <Text style={styles.pendingTitle}>승인 대기 {pendingCount}건이 있어요</Text>
               <Text style={styles.pendingSub}>같이 도전하는 사람들의 인증을 확인해주세요</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={C.blue} />
           </Pressable>
         )}
 
-        {/* My challenges */}
         <View style={styles.section}>
           <Section
             title="오늘의 챌린지"
             action={
-              <Pressable onPress={() => router.push('/explore')}>
+              <Pressable onPress={() => router.push('/(tabs)/explore')}>
                 <Text style={styles.sectionAction}>전체보기</Text>
               </Pressable>
             }
           >
-            <View style={{ gap: 12 }}>
-              {MOCK_CHALLENGES.map((c) => <ChallengeCard key={c.id} c={c} />)}
-            </View>
-          </Section>
-        </View>
-
-        {/* Popular challenges */}
-        <View style={[styles.section, { marginTop: 28 }]}>
-          <Section title="추천 챌린지">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.popularScroll}>
-              {POPULAR.map((p) => (
-                <Pressable key={p.id} onPress={() => router.push(`/challenges/${p.id}`)} style={styles.popularCard}>
-                  <PhotoPlaceholder seed={p.seed} style={styles.popularImg} />
-                  <Chip size="xs" variant="neutral" style={{ marginTop: 10 }}>{p.category}</Chip>
-                  <Text style={styles.popularTitle}>{p.title}</Text>
-                  <Text style={styles.popularMeta}>참여 {p.participants.toLocaleString()}명</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            {challengesLoading ? (
+              <ActivityIndicator color={C.blue} style={{ marginTop: 20 }} />
+            ) : !challenges || challenges.length === 0 ? (
+              <Empty icon="bookmark" title="참여 중인 챌린지가 없어요" sub="탐색 탭에서 챌린지를 찾아보세요" />
+            ) : (
+              <View style={{ gap: 12 }}>
+                {challenges.map((c) => <ChallengeCard key={c.id} c={c} />)}
+              </View>
+            )}
           </Section>
         </View>
 
@@ -239,9 +221,4 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   proofBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  popularScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
-  popularCard: { width: 168, marginRight: 12 },
-  popularImg: { width: 168, height: 112 },
-  popularTitle: { fontSize: 14, fontWeight: '600', color: C.black, marginTop: 6 },
-  popularMeta: { fontSize: 12, color: C.text3, marginTop: 4 },
 });

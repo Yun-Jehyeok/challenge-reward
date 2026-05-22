@@ -1,50 +1,54 @@
-import { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-
-const AD_DURATION = 5;
+import { useRewardedAd } from '../../hooks/useRewardedAd';
+import { toast } from '../../stores/toastStore';
+import { C } from '../../constants/theme';
 
 export default function AdScreen() {
   const router = useRouter();
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>();
-  const [seconds, setSeconds] = useState(AD_DURATION);
+  const { loaded, rewarded, error, showAd } = useRewardedAd(ticketId);
 
   useEffect(() => {
-    if (seconds <= 0) return;
-    const t = setTimeout(() => setSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [seconds]);
+    if (rewarded) {
+      router.replace({ pathname: `/tickets/${ticketId}`, params: { unlocked: '1' } });
+    }
+  }, [rewarded]);
 
-  const done = seconds <= 0;
+  useEffect(() => {
+    if (error) {
+      toast.error('광고를 끝까지 시청해야 복권을 열 수 있어요');
+      router.back();
+    }
+  }, [error]);
 
   return (
     <View style={styles.container}>
-      {/* Ad bar */}
       <View style={styles.adBar}>
         <Text style={styles.adLabel}>광고</Text>
-        <Pressable
-          onPress={() => done && router.replace({ pathname: `/tickets/${ticketId}`, params: { unlocked: '1' } })}
-          style={[styles.skipBtn, done && styles.skipBtnActive]}
-        >
-          <Text style={[styles.skipLabel, done && styles.skipLabelActive]}>
-            {done ? '건너뛰기 ›' : `${seconds}초 후 건너뛰기`}
-          </Text>
-        </Pressable>
       </View>
 
-      {/* Ad content */}
       <View style={styles.adContent}>
-        <View style={styles.adGraphic}>
-          <Text style={styles.adEmoji}>📱</Text>
-        </View>
-        <Text style={styles.adTitle}>새로운 게임이 출시되었어요</Text>
-        <Text style={styles.adSub}>지금 다운로드하면 캐시 5,000원 즉시 지급</Text>
-        <Pressable style={styles.adCta}>
-          <Text style={styles.adCtaLabel}>지금 설치하기</Text>
-        </Pressable>
+        {!loaded ? (
+          <>
+            <ActivityIndicator color="#fff" size="large" />
+            <Text style={styles.loadingText}>광고를 불러오는 중이에요</Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.adGraphic}>
+              <Text style={styles.adEmoji}>📱</Text>
+            </View>
+            <Text style={styles.adTitle}>광고가 준비됐어요</Text>
+            <Text style={styles.adSub}>광고를 끝까지 시청하면 복권을 긁을 수 있어요</Text>
+            <Pressable onPress={showAd} style={styles.adCta}>
+              <Text style={styles.adCtaLabel}>광고 시청하기</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
-      {/* Bottom hint */}
       <Text style={styles.hint}>광고를 끝까지 보면 복권을 긁을 수 있어요</Text>
     </View>
   );
@@ -57,18 +61,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
   },
   adLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, color: '#fff' },
-  skipBtn: {
-    height: 32, paddingHorizontal: 12, borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  skipBtnActive: { backgroundColor: '#fff' },
-  skipLabel: { fontSize: 12, fontWeight: '600', color: '#fff' },
-  skipLabelActive: { color: '#000' },
-  adContent: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    gap: 18, paddingHorizontal: 24,
-  },
+  adContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18, paddingHorizontal: 24 },
+  loadingText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 12 },
   adGraphic: {
     width: 240, height: 240, borderRadius: 24,
     backgroundColor: '#0066FF',

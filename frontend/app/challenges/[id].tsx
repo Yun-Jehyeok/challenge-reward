@@ -1,29 +1,20 @@
-import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar } from '../../components/ui/Avatar';
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
-import { PhotoPlaceholder } from '../../components/ui/PhotoPlaceholder';
+import { useChallenge } from '../../hooks/queries/useChallenge';
+import { useJoinChallenge } from '../../hooks/mutations/useJoinChallenge';
+import { toast } from '../../stores/toastStore';
 import { C } from '../../constants/theme';
 
-const MOCK = {
-  id: 'c1',
-  title: '하루 물 2L 마시기',
-  category: '생활습관',
-  seed: 'water',
-  description: '하루 물 2L를 꾸준히 마시는 습관을 만드는 챌린지입니다. 매일 마신 물병이나 컵 사진을 올려주세요. 카페인 음료나 주스는 인정되지 않아요.',
-  creator: '지수',
-  participants: 248,
-  period: '30일',
-  daysLeft: 12,
-  proofFreq: '하루 1회',
-  startDate: '2026.05.10',
-  endDate: '2026.06.08',
-  recentProofs: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'],
-  isJoined: true,
-};
+const COVER_COLORS = ['#00AEFF', '#FF9200', '#6541F2', '#FF5E00', '#00BF40', '#0066FF'];
+function coverColor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return COVER_COLORS[h % COVER_COLORS.length];
+}
 
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
@@ -37,87 +28,84 @@ function DetailStat({ label, value }: { label: string; value: string }) {
 export default function ChallengeDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const c = MOCK;
+  const { data: c, isLoading } = useChallenge(id);
+  const { mutate: join, isPending: joining } = useJoinChallenge(id);
+
+  const handleJoin = () => {
+    join(undefined, {
+      onSuccess: () => toast.success('챌린지에 참여했어요!'),
+      onError: (err: any) => {
+        const status = err?.response?.status;
+        if (status === 409) toast.error('이미 참여 중인 챌린지예요');
+        else if (status === 410) toast.error('종료된 챌린지예요');
+        else if (status === 400) toast.error('참여 인원이 가득 찼어요');
+        else toast.error('참여에 실패했어요');
+      },
+    });
+  };
+
+  if (isLoading || !c) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={C.blue} />
+      </View>
+    );
+  }
+
+  const color = coverColor(c.id);
 
   return (
     <View style={styles.container}>
-      {/* Hero image */}
-      <View style={styles.heroWrap}>
-        <PhotoPlaceholder seed={c.seed} style={styles.hero} />
+      <View style={[styles.heroWrap, { backgroundColor: color }]}>
         <View style={styles.heroOverlay} />
-
         <Pressable onPress={() => router.back()} style={styles.heroBack}>
           <Ionicons name="chevron-back" size={20} color="#000" />
         </Pressable>
-
         <View style={styles.heroActions}>
           <Pressable style={styles.heroActionBtn}>
             <Ionicons name="share-social-outline" size={18} color="#000" />
           </Pressable>
-          <Pressable style={styles.heroActionBtn}>
-            <Ionicons name="bookmark-outline" size={18} color="#000" />
-          </Pressable>
         </View>
-
         <View style={styles.heroBottom}>
-          <Chip size="sm" variant="neutral" style={styles.heroChip}>{c.category}</Chip>
+          {c.isEnded && <Chip size="sm" variant="neutral" style={styles.heroChip}>종료된 챌린지</Chip>}
           <Text style={styles.heroTitle}>{c.title}</Text>
         </View>
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Creator */}
-        <View style={styles.creatorRow}>
-          <Avatar name={c.creator} size={28} />
-          <Text style={styles.creatorName}>{c.creator}</Text>
-          <Text style={styles.creatorRole}>· 챌린지 메이커</Text>
-        </View>
-
-        {/* Stats */}
         <View style={styles.statsCard}>
-          <DetailStat label="참여자" value={`${c.participants}`} />
+          <DetailStat label="참여자" value={`${c.participantCount}명`} />
           <View style={styles.statsDivider} />
-          <DetailStat label="기간" value={c.period} />
+          <DetailStat label="시작" value={c.startDate} />
           <View style={styles.statsDivider} />
-          <DetailStat label="인증주기" value={c.proofFreq} />
+          <DetailStat label="종료" value={c.endDate} />
         </View>
 
-        {/* Description */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>소개</Text>
           <Text style={styles.description}>{c.description}</Text>
-          <View style={styles.dateRow}>
-            <Ionicons name="calendar-outline" size={14} color={C.text3} />
-            <Text style={styles.dateText}>{c.startDate} ~ {c.endDate}</Text>
-          </View>
-        </View>
-
-        {/* Recent proofs */}
-        <View style={styles.section}>
-          <View style={styles.proofHeader}>
-            <Text style={styles.sectionTitle}>최근 인증</Text>
-            <Text style={styles.proofCount}>{c.participants}명 인증 중</Text>
-          </View>
-          <View style={styles.proofGrid}>
-            {c.recentProofs.map((s, i) => (
-              <PhotoPlaceholder key={i} seed={c.seed + s} style={styles.proofThumb} />
-            ))}
-          </View>
+          {c.maxParticipants && (
+            <View style={styles.dateRow}>
+              <Ionicons name="people-outline" size={14} color={C.text3} />
+              <Text style={styles.dateText}>최대 {c.maxParticipants}명</Text>
+            </View>
+          )}
         </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom CTA */}
       <SafeAreaView edges={['bottom']} style={styles.cta}>
         <View style={styles.ctaInner}>
-          {c.isJoined ? (
+          {c.isEnded ? (
+            <Button full disabled>종료된 챌린지</Button>
+          ) : c.isJoined ? (
             <Button full onPress={() => router.push(`/proofs/upload?challengeId=${c.id}`)}>
               오늘 인증하기
             </Button>
           ) : (
-            <Button full onPress={() => {}}>
-              참여하기
+            <Button full onPress={handleJoin} disabled={joining}>
+              {joining ? '처리 중...' : '참여하기'}
             </Button>
           )}
         </View>
@@ -128,46 +116,32 @@ export default function ChallengeDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heroWrap: { width: '100%', height: 220, position: 'relative' },
-  hero: { width: '100%', height: 220, borderRadius: 0 },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
   heroBack: {
     position: 'absolute', top: 12, left: 12,
     width: 40, height: 40, borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center', justifyContent: 'center',
   },
-  heroActions: {
-    position: 'absolute', top: 12, right: 12,
-    flexDirection: 'row', gap: 8,
-  },
+  heroActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
   heroActionBtn: {
     width: 40, height: 40, borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center', justifyContent: 'center',
   },
-  heroBottom: {
-    position: 'absolute', left: 20, bottom: 16, right: 20,
-  },
-  heroChip: { backgroundColor: 'rgba(255,255,255,0.9)' },
+  heroBottom: { position: 'absolute', left: 20, bottom: 16, right: 20 },
+  heroChip: { backgroundColor: 'rgba(255,255,255,0.9)', alignSelf: 'flex-start' },
   heroTitle: {
     fontSize: 24, fontWeight: '800', color: '#fff',
     letterSpacing: -0.5, marginTop: 8,
     textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
   scroll: { flex: 1 },
-  creatorRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 20, paddingVertical: 16,
-  },
-  creatorName: { fontSize: 13, fontWeight: '600', color: C.black },
-  creatorRole: { fontSize: 12, color: C.text3 },
   statsCard: {
     flexDirection: 'row',
-    marginHorizontal: 20,
+    marginHorizontal: 20, marginTop: 20,
     padding: 16,
     borderRadius: 14,
     backgroundColor: C.bg2,
@@ -182,10 +156,6 @@ const styles = StyleSheet.create({
   description: { fontSize: 15, color: C.text2, lineHeight: 24 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 16 },
   dateText: { fontSize: 13, color: C.text3 },
-  proofHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  proofCount: { fontSize: 12, color: C.text3 },
-  proofGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  proofThumb: { width: '31%', aspectRatio: 1, borderRadius: 8 },
   cta: { borderTopWidth: 1, borderTopColor: C.line2, backgroundColor: '#fff' },
   ctaInner: { padding: 12, paddingHorizontal: 20, paddingBottom: 8 },
 });

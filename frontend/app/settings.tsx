@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppBar } from '../components/ui/AppBar';
 import { Toggle } from '../components/ui/Toggle';
+import { useMe } from '../hooks/queries/useMe';
+import { useAuthStore } from '../stores/authStore';
+import { usersApi } from '../api/modules/users';
+import { toast } from '../stores/toastStore';
 import { C } from '../constants/theme';
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
@@ -35,8 +39,51 @@ function Row({ label, sub, detail, trailing, chevron, isLast, onPress }: {
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { data: me } = useMe();
+  const { clearAuth } = useAuthStore();
   const [push, setPush] = useState(true);
   const [marketing, setMarketing] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '정말 로그아웃 하시겠어요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: async () => {
+          await clearAuth();
+          router.replace('/(auth)/login');
+        },
+      },
+    ]);
+  };
+
+  const handleWithdraw = () => {
+    Alert.alert(
+      '회원 탈퇴',
+      '탈퇴하면 모든 데이터가 삭제돼요. 정말 탈퇴하시겠어요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '탈퇴하기',
+          style: 'destructive',
+          onPress: async () => {
+            setWithdrawing(true);
+            try {
+              await usersApi.deleteMe();
+              await clearAuth();
+              router.replace('/(auth)/login');
+            } catch {
+              toast.error('탈퇴 처리에 실패했어요');
+            } finally {
+              setWithdrawing(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -48,9 +95,8 @@ export default function SettingsScreen() {
         </Group>
 
         <Group label="계정">
-          <Row label="닉네임 변경" detail="지수" chevron />
-          <Row label="프로필 이미지" chevron />
-          <Row label="로그아웃" chevron isLast />
+          <Row label="닉네임" detail={me?.nickname ?? ''} chevron onPress={() => router.push('/(auth)/setup-nickname')} />
+          <Row label="로그아웃" chevron onPress={handleLogout} isLast />
         </Group>
 
         <Group label="이용 정보">
@@ -60,8 +106,11 @@ export default function SettingsScreen() {
           <Row label="버전" detail="0.1.0 (MVP)" isLast />
         </Group>
 
-        <Pressable style={styles.withdraw}>
-          <Text style={styles.withdrawLabel}>회원 탈퇴</Text>
+        <Pressable style={styles.withdraw} onPress={handleWithdraw} disabled={withdrawing}>
+          {withdrawing
+            ? <ActivityIndicator color={C.text3} size="small" />
+            : <Text style={styles.withdrawLabel}>회원 탈퇴</Text>
+          }
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -86,9 +135,6 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 15, color: C.black },
   rowSub: { fontSize: 12, color: C.text3, marginTop: 2 },
   rowDetail: { fontSize: 13, color: C.text3 },
-  withdraw: {
-    marginTop: 12, padding: 14, borderRadius: 12,
-    alignItems: 'center',
-  },
+  withdraw: { marginTop: 12, padding: 14, borderRadius: 12, alignItems: 'center' },
   withdrawLabel: { fontSize: 13, color: C.text3 },
 });

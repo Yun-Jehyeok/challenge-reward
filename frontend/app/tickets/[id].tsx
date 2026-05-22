@@ -1,13 +1,16 @@
 import { useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBar } from '../../components/ui/AppBar';
 import { Button } from '../../components/ui/Button';
+import { useQuery } from '@tanstack/react-query';
+import { useTicketSsvPolling } from '../../hooks/useTicketSsvPolling';
+import { useScratchTicket } from '../../hooks/mutations/useScratchTicket';
+import { ticketsApi } from '../../api/modules/tickets';
+import { queryKeys } from '../../constants/queryKeys';
+import { toast } from '../../stores/toastStore';
 import { C } from '../../constants/theme';
-
-const AMOUNTS = [1, 1, 1, 3, 3, 5, 10];
-function pickAmount() { return AMOUNTS[Math.floor(Math.random() * AMOUNTS.length)]; }
 
 function ScratchOverlay({ onScratched }: { onScratched: () => void }) {
   const [revealed, setRevealed] = useState(false);
@@ -34,22 +37,67 @@ function ScratchOverlay({ onScratched }: { onScratched: () => void }) {
 export default function TicketScratchScreen() {
   const router = useRouter();
   const { id, unlocked } = useLocalSearchParams<{ id: string; unlocked?: string }>();
-  const [amount] = useState(pickAmount);
   const [revealed, setRevealed] = useState(false);
+  const [pollingEnabled, setPollingEnabled] = useState(!!unlocked);
 
-  // If not unlocked via ad, redirect to ad screen first
-  if (!unlocked) {
+  const { data: ticket, isLoading } = useQuery({
+    queryKey: queryKeys.tickets.detail(id),
+    queryFn: () => ticketsApi.getById(id).then((res) => res.data),
+    enabled: !!id && !pollingEnabled,
+  });
+
+  const { data: polledTicket } = useTicketSsvPolling(id, pollingEnabled);
+  const currentTicket = polledTicket ?? ticket;
+
+  const { mutate: scratch, isPending: scratching } = useScratchTicket(id);
+
+  const isAdCompleted = currentTicket?.status === 'ad_completed';
+  const isScratched = currentTicket?.status === 'scratched';
+
+  const handleScratch = () => {
+    scratch(undefined, {
+      onSuccess: (data) => {
+        router.replace({ pathname: '/tickets/reward', params: { amount: String(data.rewardAmount) } });
+      },
+      onError: (err: any) => {
+        const status = err?.response?.status;
+        if (status === 400) toast.error('광고를 먼저 시청해주세요');
+        else if (status === 409) toast.error('이미 스크래치한 복권이에요');
+        else toast.error('스크래치에 실패했어요');
+      },
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <AppBar title="복권" />
+        <ActivityIndicator color={C.blue} style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
+
+  if (currentTicket?.status === 'pending') {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <AppBar title="복권" />
         <View style={styles.content}>
-          <Text style={styles.from}>광고를 시청하면 복권을 긁을 수 있어요</Text>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 64 }}>🎫</Text>
-          </View>
-          <Button full onPress={() => router.push({ pathname: '/tickets/ad', params: { ticketId: id } })}>
-            광고 시청하고 긁기
-          </Button>
+          <Text style={styles.from}>{currentTicket ? '' : '복권 정보를 불러오는 중이에요'}</Text>
+          {pollingEnabled ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+              <ActivityIndicator color={C.blue} size="large" />
+              <Text style={styles.from}>광고 완료 확인 중이에요...</Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 64 }}>🎫</Text>
+            </View>
+          )}
+          {!pollingEnabled && (
+            <Button full onPress={() => router.push({ pathname: '/tickets/ad', params: { ticketId: id } })}>
+              광고 시청하고 긁기
+            </Button>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -60,26 +108,30 @@ export default function TicketScratchScreen() {
       <AppBar title="복권 긁기" />
 
       <View style={styles.content}>
-        <Text style={styles.from}>하루 물 2L 마시기 인증으로 받은 복권</Text>
+        <Text style={styles.from}>{currentTicket ? '' : '복권을 불러오는 중이에요'}</Text>
 
-        {/* Scratch card */}
         <View style={styles.cardWrap}>
-          {/* Reward behind */}
           <View style={styles.rewardBack}>
             <Text style={styles.rewardLabel}>축하합니다!</Text>
-            <Text style={styles.rewardAmount}>{amount.toLocaleString()}<Text style={styles.rewardUnit}>원</Text></Text>
-            <Text style={styles.rewardSub}>지갑에 적립됩니다</Text>
+            {isScratched && currentTicket?.rewardAmount != null ? (
+              <>
+                <Text style={styles.rewardAmount}>{currentTicket.rewardAmount.toLocaleString()}<Text style={styles.rewardUnit}>원</Text></Text>
+                <Text style={styles.rewardSub}>지갑에 적립됩니다</Text>
+              </>
+            ) : (
+              <Text style={styles.rewardAmount}>?<Text style={styles.rewardUnit}>원</Text></Text>
+            )}
           </View>
 
-          {/* Scratch overlay */}
-          {!revealed && <ScratchOverlay onScratched={() => setRevealed(true)} />}
+          {!revealed && !isScratched && isAdCompleted && (
+            <ScratchOverlay onScratched={() => setRevealed(true)} />
+          )}
         </View>
 
-        {/* Progress */}
         <View style={styles.progressRow}>
-          <Text style={styles.progressLabel}>{revealed ? '완료!' : '탭해서 긁어주세요'}</Text>
+          <Text style={styles.progressLabel}>{revealed || isScratched ? '완료!' : '탭해서 긁어주세요'}</Text>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: revealed ? '100%' : '0%' }]} />
+            <View style={[styles.progressFill, { width: (revealed || isScratched) ? '100%' : '0%' }]} />
           </View>
         </View>
 
@@ -91,10 +143,10 @@ export default function TicketScratchScreen() {
 
         <Button
           full
-          disabled={!revealed}
-          onPress={() => router.replace({ pathname: '/tickets/reward', params: { amount: String(amount) } })}
+          disabled={!revealed || scratching || isScratched}
+          onPress={handleScratch}
         >
-          {revealed ? `${amount.toLocaleString()}원 지갑에 담기` : '먼저 복권을 긁어주세요'}
+          {scratching ? <ActivityIndicator color="#fff" size="small" /> : isScratched ? '사용 완료' : '지갑에 담기'}
         </Button>
       </View>
     </SafeAreaView>
@@ -115,10 +167,7 @@ const styles = StyleSheet.create({
     shadowRadius: 28,
     elevation: 8,
   },
-  rewardBack: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center', justifyContent: 'center', gap: 8,
-  },
+  rewardBack: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 8 },
   rewardLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.4, color: '#D17600' },
   rewardAmount: { fontSize: 56, fontWeight: '800', color: '#FF5E00', letterSpacing: -1.5 },
   rewardUnit: { fontSize: 28, fontWeight: '700', marginLeft: 4 },
@@ -135,8 +184,6 @@ const styles = StyleSheet.create({
   progressLabel: { fontSize: 12, color: C.text3, letterSpacing: 0.3 },
   progressTrack: { width: '100%', height: 4, borderRadius: 999, backgroundColor: C.line2, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: '#FF5E00', borderRadius: 999 },
-  infoCard: {
-    width: '100%', padding: 14, borderRadius: 12, backgroundColor: C.bg3,
-  },
+  infoCard: { width: '100%', padding: 14, borderRadius: 12, backgroundColor: C.bg3 },
   infoText: { fontSize: 13, color: C.text2, lineHeight: 20, textAlign: 'center' },
 });

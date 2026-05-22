@@ -1,15 +1,26 @@
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Button } from '../../components/ui/Button';
+import { useSetupNickname } from '../../hooks/mutations/useSetupNickname';
+import { toast } from '../../stores/toastStore';
 import { C } from '../../constants/theme';
 
 export default function SetupNicknameScreen() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const ok = name.trim().length >= 2;
+  const ok = name.trim().length >= 2 && name.trim().length <= 10;
+
+  const { mutate, isPending } = useSetupNickname();
+
+  const handleSubmit = () => {
+    if (!ok) return;
+    mutate(name.trim(), {
+      onError: () => toast.error('닉네임 설정에 실패했어요. 다시 시도해주세요.'),
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -39,8 +50,8 @@ export default function SetupNicknameScreen() {
         </View>
 
         <View style={styles.spacer} />
-        <Button full disabled={!ok} onPress={() => router.replace('/(tabs)')}>
-          시작하기
+        <Button full disabled={!ok || isPending} onPress={handleSubmit}>
+          {isPending ? <ActivityIndicator color="#fff" size="small" /> : '시작하기'}
         </Button>
       </View>
     </SafeAreaView>
