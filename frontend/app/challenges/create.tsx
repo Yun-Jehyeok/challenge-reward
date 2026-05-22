@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { ScrollView, View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBar } from '../../components/ui/AppBar';
 import { Button } from '../../components/ui/Button';
+import { useCreateChallenge } from '../../hooks/mutations/useCreateChallenge';
+import { toast } from '../../stores/toastStore';
+import { toKstDateString } from '../../utils/date';
 import { C } from '../../constants/theme';
 
-const CATS = ['운동', '공부', '생활습관', '자기계발', '갓생', '건강'];
 const DURATIONS = [7, 14, 21, 30, 60, 100];
-const COLORS = ['#00AEFF', '#0066FF', '#6541F2', '#FF5E00', '#FF9200', '#00BF40'];
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -23,15 +29,29 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 export default function CreateChallengeScreen() {
-  const router = useRouter();
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-  const [cat, setCat] = useState('생활습관');
   const [days, setDays] = useState(30);
-  const [color, setColor] = useState('#00AEFF');
-  const [maxPpl, setMaxPpl] = useState('100');
+  const [maxPpl, setMaxPpl] = useState('');
+
+  const { mutate, isPending } = useCreateChallenge();
 
   const ok = title.trim().length >= 2;
+
+  const handleSubmit = () => {
+    if (!ok) return;
+    const startDate = toKstDateString();
+    const endDate = addDays(startDate, days);
+    const maxParticipants = maxPpl.trim() ? parseInt(maxPpl.trim(), 10) : null;
+
+    mutate(
+      { title: title.trim(), description: desc.trim(), startDate, endDate, maxParticipants },
+      {
+        onSuccess: () => toast.success('챌린지가 시작됐어요!'),
+        onError: () => toast.error('챌린지 생성에 실패했어요'),
+      },
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -53,26 +73,12 @@ export default function CreateChallengeScreen() {
           <TextInput
             value={desc}
             onChangeText={setDesc}
-            placeholder="이 챌린지가 어떤 챌린지인지 알려주세요. 어떤 사진을 올려야 하는지도 적어주면 좋아요."
+            placeholder="어떤 사진을 올려야 하는지도 적어주면 좋아요."
             placeholderTextColor={C.text3}
             maxLength={200}
             multiline
             style={[styles.input, styles.textarea]}
           />
-        </Field>
-
-        <Field label="카테고리">
-          <View style={styles.catWrap}>
-            {CATS.map((c) => (
-              <Pressable
-                key={c}
-                onPress={() => setCat(c)}
-                style={[styles.catBtn, cat === c && styles.catBtnActive]}
-              >
-                <Text style={[styles.catLabel, cat === c && styles.catLabelActive]}>{c}</Text>
-              </Pressable>
-            ))}
-          </View>
         </Field>
 
         <Field label="기간">
@@ -89,31 +95,21 @@ export default function CreateChallengeScreen() {
           </View>
         </Field>
 
-        <Field label="커버 색">
-          <View style={styles.colorWrap}>
-            {COLORS.map((co) => (
-              <Pressable
-                key={co}
-                onPress={() => setColor(co)}
-                style={[styles.colorBtn, { backgroundColor: co }, color === co && styles.colorBtnActive]}
-              />
-            ))}
-          </View>
-        </Field>
-
-        <Field label="최대 인원">
+        <Field label="최대 인원" hint="비워두면 무제한">
           <TextInput
             value={maxPpl}
             onChangeText={setMaxPpl}
             keyboardType="number-pad"
+            placeholder="예: 100"
+            placeholderTextColor={C.text3}
             style={[styles.input, { textAlign: 'right' }]}
           />
         </Field>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button full disabled={!ok} onPress={() => router.replace('/(tabs)')}>
-          챌린지 시작하기
+        <Button full disabled={!ok || isPending} onPress={handleSubmit}>
+          {isPending ? <ActivityIndicator color="#fff" size="small" /> : '챌린지 시작하기'}
         </Button>
       </View>
     </SafeAreaView>
@@ -134,15 +130,6 @@ const styles = StyleSheet.create({
     fontSize: 15, color: C.black, backgroundColor: '#fff',
   },
   textarea: { height: 96, paddingTop: 14, paddingBottom: 14, textAlignVertical: 'top' },
-  catWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catBtn: {
-    height: 38, paddingHorizontal: 14, borderRadius: 999,
-    borderWidth: 1, borderColor: C.line, backgroundColor: '#fff',
-    justifyContent: 'center',
-  },
-  catBtnActive: { borderColor: C.black, backgroundColor: C.black },
-  catLabel: { fontSize: 13, fontWeight: '600', color: C.text2 },
-  catLabelActive: { color: '#fff' },
   durationWrap: { flexDirection: 'row', gap: 8 },
   durationBtn: {
     flex: 1, height: 44, borderRadius: 10,
@@ -152,12 +139,6 @@ const styles = StyleSheet.create({
   durationBtnActive: { borderColor: C.blue, backgroundColor: C.blueLow },
   durationLabel: { fontSize: 14, fontWeight: '600', color: C.text2 },
   durationLabelActive: { color: C.blue },
-  colorWrap: { flexDirection: 'row', gap: 10 },
-  colorBtn: {
-    width: 44, height: 44, borderRadius: 12,
-    borderWidth: 3, borderColor: 'transparent',
-  },
-  colorBtnActive: { borderColor: '#000' },
   footer: {
     borderTopWidth: 1, borderTopColor: C.line2,
     padding: 12, paddingHorizontal: 20, paddingBottom: 20,

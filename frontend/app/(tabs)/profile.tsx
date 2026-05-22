@@ -3,11 +3,11 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '../../components/ui/Avatar';
+import { useMe } from '../../hooks/queries/useMe';
+import { useWallet } from '../../hooks/queries/useWallet';
 import { C } from '../../constants/theme';
 
-const USER = { nickname: '지수', streak: 7, totalProofs: 23, points: 1284, joinedAt: '2026.03.14' };
-
-function BigStat({ label, value, unit, color }: { label: string; value: string | number; unit: string; color: string }) {
+function BigStat({ label, value, unit }: { label: string; value: string | number; unit: string }) {
   return (
     <View style={styles.bigStat}>
       <Text style={styles.bigStatLabel}>{label}</Text>
@@ -23,10 +23,7 @@ function MenuRow({ icon, label, detail, onPress, isLast }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; detail?: string; onPress?: () => void; isLast?: boolean;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.menuRow, isLast ? null : styles.menuRowBorder]}
-    >
+    <Pressable onPress={onPress} style={[styles.menuRow, isLast ? null : styles.menuRowBorder]}>
       <Ionicons name={icon} size={20} color={C.neutral} />
       <Text style={styles.menuLabel}>{label}</Text>
       {detail ? <Text style={styles.menuDetail}>{detail}</Text> : null}
@@ -37,11 +34,16 @@ function MenuRow({ icon, label, detail, onPress, isLast }: {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { data: me } = useMe();
+  const { data: wallet } = useWallet();
+
+  const joinedAt = me?.createdAt
+    ? new Date(me.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '')
+    : '';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Text style={styles.headline}>프로필</Text>
@@ -51,28 +53,25 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.profileRow}>
-            <Avatar name={USER.nickname} size={64} />
+            <Avatar name={me?.nickname ?? '?'} size={64} />
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{USER.nickname}</Text>
-              <Text style={styles.profileJoined}>{USER.joinedAt} 가입</Text>
+              <Text style={styles.profileName}>{me?.nickname ?? ''}</Text>
+              <Text style={styles.profileJoined}>{joinedAt} 가입</Text>
             </View>
-            <Pressable style={styles.editBtn}>
+            <Pressable onPress={() => router.push('/settings')} style={styles.editBtn}>
               <Text style={styles.editBtnLabel}>편집</Text>
             </Pressable>
           </View>
 
           <View style={styles.statsRow}>
-            <BigStat label="현재 streak" value={USER.streak} unit="일" color={C.coral} />
-            <BigStat label="누적 인증" value={USER.totalProofs} unit="회" color={C.blue} />
-            <BigStat label="포인트" value={USER.points.toLocaleString()} unit="원" color={C.green} />
+            <BigStat label="보유 복권" value={me?.ticketCount ?? 0} unit="개" />
+            <BigStat label="포인트" value={(wallet?.totalEarned ?? me?.totalEarned ?? 0).toLocaleString()} unit="원" />
           </View>
         </View>
 
-        {/* Menu */}
         <View style={styles.menuSection}>
           <View style={styles.menuCard}>
-            <MenuRow icon="star-outline" label="내가 만든 챌린지" detail="2" onPress={() => router.push('/(tabs)/explore')} />
-            <MenuRow icon="document-text-outline" label="지갑 · 거래내역" detail={`${USER.points.toLocaleString()}원`} onPress={() => router.push('/wallet')} />
+            <MenuRow icon="document-text-outline" label="지갑 · 거래내역" detail={`${(wallet?.balance ?? 0).toLocaleString()}원`} onPress={() => router.push('/wallet')} />
             <MenuRow icon="notifications-outline" label="알림 설정" onPress={() => router.push('/settings')} />
             <MenuRow icon="chatbubble-outline" label="문의하기" />
             <MenuRow icon="document-outline" label="공지사항" />
@@ -104,11 +103,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editBtnLabel: { fontSize: 12, fontWeight: '600', color: C.black },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 20,
-  },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 20 },
   bigStat: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: C.bg3 },
   bigStatLabel: { fontSize: 11, letterSpacing: 0.3, color: C.text3 },
   bigStatValue: { marginTop: 6, fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },

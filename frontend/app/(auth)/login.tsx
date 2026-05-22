@@ -1,16 +1,47 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import { useKakaoLogin } from '../../hooks/mutations/useKakaoLogin';
+import { toast } from '../../stores/toastStore';
 import { C } from '../../constants/theme';
 
+WebBrowser.maybeCompleteAuthSession();
+
+const KAKAO_APP_KEY = process.env.EXPO_PUBLIC_KAKAO_APP_KEY ?? '';
+const redirectUri = AuthSession.makeRedirectUri({ scheme: `kakao${KAKAO_APP_KEY}` });
+
+const discovery = {
+  authorizationEndpoint: 'https://kauth.kakao.com/oauth/authorize',
+};
+
 export default function LoginScreen() {
-  const router = useRouter();
+  const { mutate: kakaoLogin, isPending } = useKakaoLogin();
+
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: KAKAO_APP_KEY,
+      redirectUri,
+      responseType: AuthSession.ResponseType.Code,
+    },
+    discovery,
+  );
+
+  useEffect(() => {
+    if (response?.type === 'success' && response.params.code) {
+      kakaoLogin(response.params.code, {
+        onError: () => toast.error('로그인에 실패했어요. 다시 시도해주세요.'),
+      });
+    } else if (response?.type === 'error') {
+      toast.error('카카오 로그인을 취소했어요');
+    }
+  }, [response]);
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.hero}>
-          {/* Logo */}
           <View style={styles.logoWrap}>
             <Text style={styles.logoIcon}>⬆</Text>
           </View>
@@ -20,11 +51,18 @@ export default function LoginScreen() {
 
         <View style={styles.actions}>
           <Pressable
-            onPress={() => router.push('/(auth)/setup-nickname')}
-            style={styles.kakaoBtn}
+            onPress={() => promptAsync()}
+            disabled={!request || isPending}
+            style={[styles.kakaoBtn, (!request || isPending) && styles.kakaoBtnDisabled]}
           >
-            <Text style={styles.kakaoIcon}>💬</Text>
-            <Text style={styles.kakaoBtnLabel}>카카오로 3초만에 시작</Text>
+            {isPending ? (
+              <ActivityIndicator color="rgba(0,0,0,0.55)" size="small" />
+            ) : (
+              <>
+                <Text style={styles.kakaoIcon}>💬</Text>
+                <Text style={styles.kakaoBtnLabel}>카카오로 3초만에 시작</Text>
+              </>
+            )}
           </Pressable>
 
           <Text style={styles.terms}>
@@ -48,66 +86,33 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     justifyContent: 'space-between',
   },
-  hero: {
-    flex: 1,
-    justifyContent: 'center',
-  },
+  hero: { flex: 1, justifyContent: 'center' },
   logoWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 64, height: 64, borderRadius: 20,
     backgroundColor: C.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 24,
   },
-  logoIcon: {
-    fontSize: 28,
-    color: '#fff',
-  },
+  logoIcon: { fontSize: 28, color: '#fff' },
   headline: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: C.black,
-    letterSpacing: -0.6,
-    lineHeight: 38,
+    fontSize: 28, fontWeight: '800', color: C.black,
+    letterSpacing: -0.6, lineHeight: 38,
   },
   sub: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: C.text3,
-    marginTop: 12,
-    lineHeight: 24,
+    fontSize: 15, fontWeight: '500', color: C.text3,
+    marginTop: 12, lineHeight: 24,
   },
-  actions: {
-    gap: 10,
-  },
+  actions: { gap: 10 },
   kakaoBtn: {
-    height: 52,
-    borderRadius: 12,
+    height: 52, borderRadius: 12,
     backgroundColor: '#FEE500',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     gap: 8,
   },
-  kakaoIcon: {
-    fontSize: 20,
-  },
-  kakaoBtnLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'rgba(0,0,0,0.85)',
-    letterSpacing: -0.04,
-  },
-  terms: {
-    fontSize: 12,
-    color: C.text3,
-    textAlign: 'center',
-    marginTop: 12,
-  },
-  termsLink: {
-    color: C.text2,
-    textDecorationLine: 'underline',
-  },
+  kakaoBtnDisabled: { opacity: 0.6 },
+  kakaoIcon: { fontSize: 20 },
+  kakaoBtnLabel: { fontSize: 16, fontWeight: '700', color: 'rgba(0,0,0,0.85)', letterSpacing: -0.04 },
+  terms: { fontSize: 12, color: C.text3, textAlign: 'center', marginTop: 12 },
+  termsLink: { color: C.text2, textDecorationLine: 'underline' },
 });

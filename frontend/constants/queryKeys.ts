@@ -13,5 +13,8 @@ export const queryKeys = {
     all: ['tickets'] as const,
     detail: (id: string) => ['tickets', id] as const,
   },
-  wallet: ['wallet'] as const,
+  wallet: {
+    all: ['wallet'] as const,
+    transactions: ['wallet', 'transactions'] as const,
+  },
 } as const;

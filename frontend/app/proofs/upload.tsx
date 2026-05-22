@@ -1,29 +1,68 @@
 import { useState } from 'react';
-import { ScrollView, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { ScrollView, View, Text, TextInput, Pressable, StyleSheet, Image, ActivityIndicator, Alert } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { AppBar } from '../../components/ui/AppBar';
 import { Button } from '../../components/ui/Button';
-import { PhotoPlaceholder } from '../../components/ui/PhotoPlaceholder';
+import { useUploadProof } from '../../hooks/mutations/useUploadProof';
+import { useChallenge } from '../../hooks/queries/useChallenge';
+import { toast } from '../../stores/toastStore';
 import { C } from '../../constants/theme';
 
 export default function UploadProofScreen() {
-  const router = useRouter();
   const { challengeId } = useLocalSearchParams<{ challengeId: string }>();
   const [comment, setComment] = useState('');
-  const [picked, setPicked] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+
+  const { data: challenge } = useChallenge(challengeId);
+  const { mutate: upload, isPending } = useUploadProof(challengeId);
+
+  const pickImage = async (useCamera: boolean) => {
+    const { status } = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (status !== 'granted') {
+      Alert.alert('권한 필요', useCamera ? '카메라 접근 권한이 필요해요' : '갤러리 접근 권한이 필요해요');
+      return;
+    }
+
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
+
+  const handleUpload = () => {
+    if (!imageUri) return;
+    upload(
+      { imageUri, comment: comment.trim() || undefined },
+      {
+        onSuccess: () => toast.success('인증 완료! 승인을 기다리세요'),
+        onError: (err: any) => {
+          const status = err?.response?.status;
+          if (status === 409) toast.error('오늘은 이미 인증했어요');
+          else if (status === 400) toast.error('종료된 챌린지예요');
+          else toast.error('인증 업로드에 실패했어요');
+        },
+      },
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <AppBar title="인증하기" sub="하루 물 2L 마시기" />
+      <AppBar title="인증하기" sub={challenge?.title} />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Image picker */}
-        {picked ? (
+        {imageUri ? (
           <View style={styles.previewWrap}>
-            <PhotoPlaceholder seed="upload-shot" style={styles.preview} />
-            <Pressable onPress={() => setPicked(false)} style={styles.reselect}>
+            <Image source={{ uri: imageUri }} style={styles.preview} />
+            <Pressable onPress={() => setImageUri(null)} style={styles.reselect}>
               <Text style={styles.reselectText}>다시 선택</Text>
             </Pressable>
           </View>
@@ -32,12 +71,12 @@ export default function UploadProofScreen() {
             <Ionicons name="image-outline" size={36} color={C.neutral} />
             <Text style={styles.placeholderText}>사진을 선택해주세요</Text>
             <View style={styles.pickerBtns}>
-              <Button variant="secondary" size="md" onPress={() => setPicked(true)}
+              <Button variant="secondary" size="md" onPress={() => pickImage(false)}
                 leading={<Ionicons name="cloud-upload-outline" size={16} color={C.black} />}
               >
                 갤러리
               </Button>
-              <Button size="md" onPress={() => setPicked(true)}
+              <Button size="md" onPress={() => pickImage(true)}
                 leading={<Ionicons name="camera-outline" size={16} color="#fff" />}
               >
                 카메라
@@ -46,7 +85,6 @@ export default function UploadProofScreen() {
           </View>
         )}
 
-        {/* Comment */}
         <View style={styles.commentWrap}>
           <Text style={styles.commentLabel}>
             한 줄 메모 <Text style={styles.commentOptional}>(선택)</Text>
@@ -63,18 +101,17 @@ export default function UploadProofScreen() {
           <Text style={styles.commentCount}>{comment.length}/80</Text>
         </View>
 
-        {/* Info banner */}
         <View style={styles.infoCard}>
           <Ionicons name="document-text-outline" size={18} color={C.blue} style={{ marginTop: 2 }} />
           <Text style={styles.infoText}>
-            업로드하면 같은 챌린지 참여자 3명이 승인해야 복권이 지급돼요. 인증이 거부되면 streak가 초기화됩니다.
+            업로드하면 같은 챌린지 참여자 3명이 승인해야 복권이 지급돼요.
           </Text>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button full disabled={!picked} onPress={() => router.replace('/(tabs)')}>
-          인증 업로드
+        <Button full disabled={!imageUri || isPending} onPress={handleUpload}>
+          {isPending ? <ActivityIndicator color="#fff" size="small" /> : '인증 업로드'}
         </Button>
       </View>
     </SafeAreaView>
