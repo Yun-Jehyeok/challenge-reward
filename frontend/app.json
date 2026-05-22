@@ -25,14 +25,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-xxx~xxx",
-          "iosAppId": "ca-app-pub-xxx~xxx"
-        }
-      ]
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

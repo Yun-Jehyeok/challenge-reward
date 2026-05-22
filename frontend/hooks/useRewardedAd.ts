@@ -1,47 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  RewardedAd,
-  RewardedAdEventType,
-  AdEventType,
-  TestIds,
-} from 'react-native-google-mobile-ads';
+import { useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 
-const AD_UNIT_ID = __DEV__
-  ? TestIds.REWARDED
-  : (process.env.EXPO_PUBLIC_ADMOB_REWARDED_AD_UNIT_ID ?? TestIds.REWARDED);
+// TODO: AdMob 작업 시 react-native-google-mobile-ads 복구
+// - app.json plugins에 react-native-google-mobile-ads 플러그인 추가
+// - 아래 스텁 코드를 원래 구현으로 교체
 
-export function useRewardedAd(ticketId: string) {
-  const [loaded, setLoaded] = useState(false);
+export function useRewardedAd(_ticketId: string) {
   const [rewarded, setRewarded] = useState(false);
-  const [error, setError] = useState(false);
-
-  const ad = RewardedAd.createForAdRequest(AD_UNIT_ID, {
-    customData: ticketId,
-  });
-
-  useEffect(() => {
-    const unsubLoad = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
-      setLoaded(true);
-    });
-    const unsubEarned = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
-      setRewarded(true);
-    });
-    const unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
-      setError(true);
-    });
-
-    ad.load();
-
-    return () => {
-      unsubLoad();
-      unsubEarned();
-      unsubError();
-    };
-  }, [ticketId]);
 
   const showAd = useCallback(() => {
-    if (loaded) ad.show();
-  }, [loaded]);
+    if (Platform.OS === 'web') {
+      // web 테스트용: 광고 없이 즉시 rewarded 처리
+      setRewarded(true);
+    }
+  }, []);
 
-  return { loaded, rewarded, error, showAd };
+  return { loaded: Platform.OS === 'web', rewarded, error: false, showAd };
 }

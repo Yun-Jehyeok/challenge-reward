@@ -22,10 +22,14 @@ export class NotificationsService implements OnModuleInit {
     const privateKey = this.config.get<string>('FCM_PRIVATE_KEY');
 
     if (projectId && clientEmail && privateKey && !admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-      });
-      this.initialized = true;
+      try {
+        admin.initializeApp({
+          credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+        });
+        this.initialized = true;
+      } catch (err) {
+        this.logger.warn(`Firebase Admin SDK initialization failed: ${err}`);
+      }
     } else {
       this.logger.warn('Firebase Admin SDK not initialized (missing env vars)');
     }

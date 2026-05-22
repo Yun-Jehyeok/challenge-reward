@@ -1,6 +1,12 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuthStore } from '../stores/authStore';
+
+const getRefreshToken = async (): Promise<string | null> => {
+  if (Platform.OS === 'web') return localStorage.getItem('refresh_token');
+  return SecureStore.getItemAsync('refresh_token');
+};
 
 const client = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
@@ -17,7 +23,12 @@ client.interceptors.request.use((config) => {
 });
 
 client.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    if (res.data && typeof res.data === 'object' && 'success' in res.data) {
+      res.data = res.data.data;
+    }
+    return res;
+  },
   async (error) => {
     const originalRequest = error.config;
 
@@ -25,13 +36,13 @@ client.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = await SecureStore.getItemAsync('refresh_token');
+        const refreshToken = await getRefreshToken();
         const { data } = await axios.post(
           `${process.env.EXPO_PUBLIC_API_URL}/auth/refresh`,
           { refreshToken },
         );
 
-        const { accessToken } = data;
+        const accessToken = data?.data?.accessToken ?? data?.accessToken;
         await useAuthStore.getState().setTokens(accessToken, refreshToken!);
 
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;

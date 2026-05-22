@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,9 +25,21 @@ const queryClient = new QueryClient({
 function AuthGate() {
   const router = useRouter();
   const segments = useSegments();
-  const { accessToken, user } = useAuthStore();
+  const { accessToken, user, loadFromStorage, setUser } = useAuthStore();
+  const [initialized, setInitialized] = useState(false);
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
+
+  useEffect(() => {
+    loadFromStorage().then(() => setInitialized(true));
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken || user) return;
+    usersApi.getMe().then((res) => {
+      setUser(res.data);
+    }).catch(() => {});
+  }, [accessToken, user]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -51,15 +63,17 @@ function AuthGate() {
   }, []);
 
   useEffect(() => {
+    if (!initialized) return;
+    if (accessToken && !user) return; // 유저 fetch 대기
     const inAuth = segments[0] === '(auth)';
     if (!accessToken && !inAuth) {
       router.replace('/(auth)/login');
     } else if (accessToken && !user?.nickname && segments[1] !== 'setup-nickname') {
       router.replace('/(auth)/setup-nickname');
-    } else if (accessToken && user?.nickname && inAuth) {
+    } else if (accessToken && user?.nickname && inAuth && segments[1] !== 'setup-nickname') {
       router.replace('/(tabs)');
     }
-  }, [accessToken, user, segments]);
+  }, [accessToken, user, segments, initialized]);
 
   return <Slot />;
 }

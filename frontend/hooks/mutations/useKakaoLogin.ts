@@ -7,9 +7,11 @@ export function useKakaoLogin() {
   const { setTokens, setUser } = useAuthStore();
 
   return useMutation({
-    mutationFn: (code: string) => authApi.kakaoLogin(code).then((res) => res.data),
+    mutationFn: ({ code, codeVerifier }: { code: string; codeVerifier?: string }) =>
+      authApi.kakaoLogin(code, codeVerifier).then((res) => res.data),
     onSuccess: async (data) => {
       await setTokens(data.accessToken, data.refreshToken);
+      setUser(data.user);
       if (data.isNewUser) {
         router.replace('/(auth)/setup-nickname');
       } else {

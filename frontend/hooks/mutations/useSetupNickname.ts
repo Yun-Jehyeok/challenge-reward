@@ -1,10 +1,11 @@
 import { useMutation } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { usersApi } from '../../api/modules/users';
 import { useAuthStore } from '../../stores/authStore';
 
 export function useSetupNickname() {
   const { setUser } = useAuthStore();
+  const router = useRouter();
 
   return useMutation({
     mutationFn: (nickname: string) => usersApi.updateMe({ nickname }).then((res) => res.data),
