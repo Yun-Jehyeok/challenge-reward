@@ -1,0 +1,9 @@
+{
+  "name": "challenge-reward",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared"
+  ]
+}
