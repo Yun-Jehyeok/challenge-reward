@@ -32,13 +32,11 @@ export class WalletService {
       .leftJoin(Proof, 'p', 'p.id = tx.ticket_id')
       .leftJoin(Challenge, 'c', 'c.id = p.challenge_id')
       .where('tx.wallet_id = :walletId', { walletId: wallet.id })
-      .select([
-        'tx.id AS id',
-        'tx.amount AS amount',
-        'tx.type AS type',
-        'c.title AS "challengeTitle"',
-        'tx.created_at AS "createdAt"',
-      ]);
+      .select('tx.id', 'id')
+      .addSelect('tx.amount', 'amount')
+      .addSelect('tx.type', 'type')
+      .addSelect('c.title', 'challengeTitle')
+      .addSelect('tx.createdAt', 'createdAt');
 
     if (dto.cursor) {
       const [cursorDate, cursorId] = dto.cursor.split('_');

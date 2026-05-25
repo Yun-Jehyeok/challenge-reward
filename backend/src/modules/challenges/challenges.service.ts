@@ -140,12 +140,19 @@ export class ChallengesService {
     });
     if (!challenge) throw new NotFoundException('챌린지를 찾을 수 없습니다.');
 
-    const participantCount = await this.participantRepo.count({ where: { challengeId: id } });
-    const isJoined = !!(await this.participantRepo.findOne({ where: { challengeId: id, userId } }));
     const today = toKstDateString();
+    const [participantCount, isJoined, todayProofRows] = await Promise.all([
+      this.participantRepo.count({ where: { challengeId: id } }),
+      this.participantRepo.findOne({ where: { challengeId: id, userId } }),
+      this.dataSource.query(
+        `SELECT id FROM proofs WHERE challenge_id = $1 AND user_id = $2 AND proof_date = $3`,
+        [id, userId, today],
+      ),
+    ]);
 
     return {
-      ...this.formatChallenge(challenge, participantCount, challenge.endDate < today, isJoined),
+      ...this.formatChallenge(challenge, participantCount, challenge.endDate < today, !!isJoined),
+      isTodayProofDone: todayProofRows.length > 0,
     };
   }
 

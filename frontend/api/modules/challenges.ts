@@ -24,6 +24,7 @@ export interface MyChallengeItem {
 export interface ChallengeDetail extends ChallengeSummary {
   createdAt: string;
   maxParticipants: number | null;
+  isTodayProofDone: boolean;
 }
 
 export interface CreateChallengeDto {
