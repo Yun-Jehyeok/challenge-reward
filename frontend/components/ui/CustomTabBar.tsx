@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
 import { useRef, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,9 +49,10 @@ function TabItem({ tab, isActive, onPress }: { tab: Tab; isActive: boolean; onPr
 
 export function CustomTabBar({ state, navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === 'android' && insets.bottom === 0 ? 48 : insets.bottom;
 
   return (
-    <View style={[styles.wrapper, { paddingBottom: insets.bottom + 8 }]}>
+    <View style={[styles.wrapper, { paddingBottom: bottomInset + 8 }]}>
       <View style={styles.pill}>
         {TABS.map((tab, i) => {
           const route = state.routes[i];
