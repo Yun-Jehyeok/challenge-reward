@@ -91,9 +91,9 @@ async function registerFcmToken() {
 
   if (finalStatus !== 'granted') return;
 
-  const token = await Notifications.getExpoPushTokenAsync();
+  const token = await Notifications.getDevicePushTokenAsync();
   if (token.data) {
-    await usersApi.updateFcmToken(token.data).catch(() => {});
+    await usersApi.updateFcmToken(token.data as string).catch(() => {});
   }
 }
 
