@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import {
     View,
     Text,
@@ -7,45 +7,31 @@ import {
     ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
+import { login } from "@react-native-seoul/kakao-login";
 import { useKakaoLogin } from "../../hooks/mutations/useKakaoLogin";
 import { toast } from "../../stores/toastStore";
 import { C } from "../../constants/theme";
 
-WebBrowser.maybeCompleteAuthSession();
-
-const KAKAO_APP_KEY = process.env.EXPO_PUBLIC_KAKAO_APP_KEY ?? "";
-const redirectUri = AuthSession.makeRedirectUri({
-    scheme: `kakao${KAKAO_APP_KEY}`,
-});
-
-const discovery = {
-    authorizationEndpoint: "https://kauth.kakao.com/oauth/authorize",
-};
-
 export default function LoginScreen() {
     const { mutate: kakaoLogin, isPending } = useKakaoLogin();
+    const [loading, setLoading] = useState(false);
 
-    const [request, response, promptAsync] = AuthSession.useAuthRequest(
-        {
-            clientId: KAKAO_APP_KEY,
-            redirectUri,
-            responseType: AuthSession.ResponseType.Code,
-        },
-        discovery,
-    );
-
-    useEffect(() => {
-        if (response?.type === "success" && response.params.code) {
+    const handleLogin = async () => {
+        try {
+            setLoading(true);
+            const { accessToken } = await login();
             kakaoLogin(
-                { code: response.params.code, codeVerifier: request?.codeVerifier },
+                { accessToken },
                 { onError: () => toast.error("로그인에 실패했어요. 다시 시도해주세요.") },
             );
-        } else if (response?.type === "error") {
+        } catch {
             toast.error("카카오 로그인을 취소했어요");
+        } finally {
+            setLoading(false);
         }
-    }, [response]);
+    };
+
+    const isLoading = loading || isPending;
 
     return (
         <SafeAreaView style={styles.safe}>
@@ -65,18 +51,12 @@ export default function LoginScreen() {
 
                 <View style={styles.actions}>
                     <Pressable
-                        onPress={() => promptAsync()}
-                        disabled={!request || isPending}
-                        style={[
-                            styles.kakaoBtn,
-                            (!request || isPending) && styles.kakaoBtnDisabled,
-                        ]}
+                        onPress={handleLogin}
+                        disabled={isLoading}
+                        style={[styles.kakaoBtn, isLoading && styles.kakaoBtnDisabled]}
                     >
-                        {isPending ? (
-                            <ActivityIndicator
-                                color="rgba(0,0,0,0.55)"
-                                size="small"
-                            />
+                        {isLoading ? (
+                            <ActivityIndicator color="rgba(0,0,0,0.55)" size="small" />
                         ) : (
                             <>
                                 <Text style={styles.kakaoIcon}>💬</Text>

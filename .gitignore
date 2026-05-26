@@ -50,6 +50,10 @@ android/
 *.mobileprovision
 *.orig.*
 
+# Firebase
+google-services.json
+GoogleService-Info.plist
+
 # EAS
 .eas/
 
