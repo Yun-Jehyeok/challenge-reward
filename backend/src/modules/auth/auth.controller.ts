@@ -13,7 +13,7 @@ export class AuthController {
   @Public()
   @Post('kakao')
   async kakaoLogin(@Body() dto: KakaoLoginDto) {
-    return this.authService.kakaoLogin(dto.code, dto.codeVerifier);
+    return this.authService.kakaoLogin(dto.accessToken);
   }
 
   @Public()

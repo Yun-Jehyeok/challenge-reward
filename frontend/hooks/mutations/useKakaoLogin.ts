@@ -7,8 +7,8 @@ export function useKakaoLogin() {
   const { setTokens, setUser } = useAuthStore();
 
   return useMutation({
-    mutationFn: ({ code, codeVerifier }: { code: string; codeVerifier?: string }) =>
-      authApi.kakaoLogin(code, codeVerifier).then((res) => res.data),
+    mutationFn: ({ accessToken }: { accessToken: string }) =>
+      authApi.kakaoLogin(accessToken).then((res) => res.data),
     onSuccess: async (data) => {
       await setTokens(data.accessToken, data.refreshToken);
       setUser(data.user);

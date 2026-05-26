@@ -26,14 +26,13 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
-  async kakaoLogin(code: string, codeVerifier?: string): Promise<{
+  async kakaoLogin(kakaoAccessToken: string): Promise<{
     accessToken: string;
     refreshToken: string;
     isNewUser: boolean;
     user: ReturnType<AuthService['formatUser']>;
   }> {
-    const kakaoToken = await this.getKakaoToken(code, codeVerifier);
-    const kakaoUser = await this.getKakaoUserInfo(kakaoToken);
+    const kakaoUser = await this.getKakaoUserInfo(kakaoAccessToken);
     const kakaoId = String(kakaoUser.id);
     const kakaoNickname = kakaoUser.kakao_account?.profile?.nickname ?? `user_${kakaoId.slice(-6)}`;
 
@@ -89,29 +88,6 @@ export class AuthService {
     );
     await this.usersService.updateRefreshToken(user.id, refreshToken);
     return { accessToken, refreshToken };
-  }
-
-  private async getKakaoToken(code: string, codeVerifier?: string): Promise<string> {
-    const redirectUri = this.config.get<string>('KAKAO_REDIRECT_URI') ?? '';
-    const clientId = this.config.get<string>('KAKAO_CLIENT_ID') ?? '';
-    const params = new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      code,
-      ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
-    });
-    try {
-      const res = await axios.post<{ access_token: string }>(
-        'https://kauth.kakao.com/oauth/token',
-        params.toString(),
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
-      );
-      return res.data.access_token;
-    } catch (err: any) {
-      const kakaoError = err.response?.data;
-      throw new Error(`Kakao token exchange failed — redirect_uri: ${redirectUri}, kakao error: ${JSON.stringify(kakaoError)}`);
-    }
   }
 
   private async getKakaoUserInfo(accessToken: string): Promise<KakaoUserInfo> {
