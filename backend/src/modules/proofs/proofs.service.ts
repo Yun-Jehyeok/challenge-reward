@@ -58,6 +58,8 @@ export class ProofsService {
         imageKey: dto.imageKey,
         comment: dto.comment ?? null,
         proofDate: today,
+        status: ProofStatus.APPROVED,
+        approvedAt: new Date(),
       });
 
       // streak 업로드 시점에 즉시 증가
@@ -65,6 +67,13 @@ export class ProofsService {
       await this.participantRepo.update(participant.id, {
         currentStreak: newStreak,
         maxStreak: Math.max(participant.maxStreak, newStreak),
+      });
+
+      // TODO: 임시 - 단일 계정 테스트용. 추후 P2P 투표 승인(3표) 로직으로 복구 필요
+      await this.proofRepo.manager.save(Ticket, {
+        userId,
+        proofId: proof.id,
+        status: TicketStatus.PENDING,
       });
 
       const domain = this.config.get<string>('CLOUDFRONT_DOMAIN') ?? '';
@@ -92,27 +101,25 @@ export class ProofsService {
     const challengeIds = myParticipations.map((p) => p.challengeId);
 
     const qb = this.proofRepo.createQueryBuilder('p')
-      .innerJoin(Challenge, 'c', 'c.id = p.challenge_id AND c.deleted_at IS NULL')
-      .innerJoin('users', 'u', 'u.id = p.user_id')
+      .innerJoin(Challenge, 'c', 'c.id = p.challenge_id::uuid AND c.deleted_at IS NULL')
+      .innerJoin('users', 'u', 'u.id = p.user_id::uuid')
       .leftJoin(
         ProofVote,
         'pv',
-        'pv.proof_id = p.id AND pv.voter_id = :userId',
+        'pv.proof_id::uuid = p.id AND pv.voter_id = :userId',
         { userId },
       )
       .where('p.challenge_id IN (:...challengeIds)', { challengeIds })
       .andWhere('p.user_id != :userId', { userId })
       .andWhere('p.status = :status', { status: ProofStatus.PENDING })
       .andWhere('pv.id IS NULL')
-      .select([
-        'p.id AS id',
-        'c.title AS "challengeTitle"',
-        'p.image_key AS "imageKey"',
-        'p.comment AS comment',
-        'u.nickname AS "uploaderNickname"',
-        'u.profile_image_key AS "uploaderProfileImageKey"',
-        'p.created_at AS "createdAt"',
-      ]);
+      .select('p.id', 'id')
+      .addSelect('c.title', 'challengeTitle')
+      .addSelect('p.imageKey', 'imageKey')
+      .addSelect('p.comment', 'comment')
+      .addSelect('u.nickname', 'uploaderNickname')
+      .addSelect('u.profile_image_key', 'uploaderProfileImageKey')
+      .addSelect('p.createdAt', 'createdAt');
 
     if (dto.cursor) {
       const [cursorDate, cursorId] = dto.cursor.split('_');
@@ -187,7 +194,7 @@ export class ProofsService {
     const challengeIds = myParticipations.map((p) => p.challengeId);
 
     const count = await this.proofRepo.createQueryBuilder('p')
-      .leftJoin(ProofVote, 'pv', 'pv.proof_id = p.id AND pv.voter_id = :userId', { userId })
+      .leftJoin(ProofVote, 'pv', 'pv.proof_id::uuid = p.id AND pv.voter_id = :userId', { userId })
       .where('p.challenge_id IN (:...challengeIds)', { challengeIds })
       .andWhere('p.user_id != :userId', { userId })
       .andWhere('p.status = :status', { status: ProofStatus.PENDING })

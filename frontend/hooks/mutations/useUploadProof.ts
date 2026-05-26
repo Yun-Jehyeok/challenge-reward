@@ -21,6 +21,8 @@ export function useUploadProof(challengeId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.challenges.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.challenges.detail(challengeId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });
       router.replace('/(tabs)');
     },
   });

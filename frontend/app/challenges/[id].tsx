@@ -99,6 +99,8 @@ export default function ChallengeDetailScreen() {
         <View style={styles.ctaInner}>
           {c.isEnded ? (
             <Button full disabled>종료된 챌린지</Button>
+          ) : c.isJoined && c.isTodayProofDone ? (
+            <Button full disabled>✓ 오늘 인증 완료</Button>
           ) : c.isJoined ? (
             <Button full onPress={() => router.push(`/proofs/upload?challengeId=${c.id}`)}>
               오늘 인증하기
