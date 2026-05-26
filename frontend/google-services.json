@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "335948490315",
+    "project_id": "challenge-reward",
+    "storage_bucket": "challenge-reward.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:335948490315:android:d99d0907e573f344034fce",
+        "android_client_info": {
+          "package_name": "com.challengereward.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNK5rinZRXwbg-rVv7cdVhVAGy2Q0yANQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
