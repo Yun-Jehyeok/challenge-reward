@@ -33,6 +33,13 @@
           "icon": "./assets/icon.png",
           "color": "#ffffff"
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4597310985563710~5410653080",
+          "iosAppId": "ca-app-pub-xxx~xxx"
+        }
       ]
     ],
     "experiments": {
